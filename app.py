@@ -849,6 +849,10 @@ def submit_order():
     key  = _user_key()
     cart = _get_cart(key)
 
+    # If main chat cart is empty, check whether a transfer agent cart was built
+    if not cart:
+        cart = list(session.get("transfer_cart", []))
+
     if not cart:
         return jsonify({"error": "Cart is empty"}), 400
 
@@ -886,6 +890,10 @@ def submit_order():
 
     # ── Reset user state ──────────────────────────────────────────────────────
     _reset_user(key)
+    # Clear transfer agent session state too (order consumed it)
+    session.pop("transfer_history", None)
+    session.pop("transfer_cart", None)
+    session.modified = True
 
     return jsonify({"ok": True})
 
