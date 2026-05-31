@@ -137,6 +137,7 @@ _DOC_LABEL_MAP = {
     "WESTERN TOOLS.pdf":                                    "Western Tools Reference",
     "WIDE OUT Mechanics Guide.pdf":                         "Wide-Out Mechanics Guide",
     "Western Plow Transfer Guide_23.pdf":                   "Western Plow Transfer Guide (2023)",
+    "Western Plow Transfer Guide_V1.5.pdf":                 "Western Plow Transfer Guide V1.5 (2024)",
     "Western Reference Guide.pdf":                         "Western Reference Guide",
     "Western Reference Manual.pdf":                        "Western Reference Manual",
     "Western Shipping Error Shortage Claim Form Master Copy 11-9-18.pdf": "Shipping Error / Shortage Claim Form",
@@ -893,6 +894,211 @@ def submit_order():
 def health():
     return jsonify({"status": "ok", "service": "westernchat", "docs": len(DOC_INDEX),
                     "ts": datetime.utcnow().isoformat()}), 200
+
+
+# ── Plow Transfer Agent ───────────────────────────────────────────────────────
+# Loaded from knowledge dir at startup — the V1.5 guide supersedes the older one.
+_TRANSFER_GUIDE_PATH = KNOWLEDGE_DIR / "Western Plow Transfer Guide_V1.5.pdf"
+
+# Structured decision data extracted from the guide (pages 4-16)
+# Maps (mount_type, blade_type, electrical_system, new_truck_year) → PT kit + typical order
+_TRANSFER_DECISION_CSV = KNOWLEDGE_DIR / "transfer_decision_tree.csv"
+_TRANSFER_KITS_CSV      = KNOWLEDGE_DIR / "transfer_kits.csv"
+
+def _load_csv_as_text(path: Path) -> str:
+    """Return CSV contents as a plain-text string for prompt injection."""
+    try:
+        with path.open("r", encoding="utf-8") as f:
+            return f.read()
+    except Exception:
+        return ""
+
+_TRANSFER_DECISION_DATA = _load_csv_as_text(_TRANSFER_DECISION_CSV)
+_TRANSFER_KITS_DATA     = _load_csv_as_text(_TRANSFER_KITS_CSV)
+
+# Plug ID page link — page 3 of V1.5 PDF (TOC says page 2 = plug ID)
+_PLUG_ID_URL = "/westernchat/docs/" + urlquote("Western Plow Transfer Guide_V1.5.pdf")
+
+TRANSFER_SYSTEM_PROMPT = f"""You are the Western Plow Transfer Specialist for Steensma Lawn & Power.
+Your ONLY job is to determine the correct transfer kit and parts list when a customer moves a Western plow
+from one truck to another.
+
+WORKFLOW — follow these steps in order, never skip:
+STEP 1 — OLD VEHICLE: Ask for year, make, model of the truck the plow is currently on.
+STEP 2 — PLOW DETAILS: Ask for the plow model (e.g., MVP Plus, Wide-Out, Straight Blade Pro Plow)
+         and the mount type (UltraMount or UniMount). If the customer is unsure of the plug/harness
+         type, offer the plug identification link: {_PLUG_ID_URL}
+STEP 3 — NEW VEHICLE: Ask for year, make, model of the truck the plow is going onto.
+STEP 4 — DETERMINE KIT: Using the decision data below, determine the correct PT kit number and
+         typical parts list. Present it clearly to the customer.
+STEP 5 — COMMIT: Confirm the full parts list with the customer. When they say YES, set phase=COMMIT.
+         The customer will enter their shipping/contact info via the order form — do NOT ask for it.
+
+DECISION RULES (from Western Plow Transfer Guide V1.5):
+- UltraMount = current mount system (no conversion needed unless going FROM UniMount)
+- UniMount = older system — ALWAYS requires 27170 UniMount-to-UltraMount Conversion Kit + new mount
+- New truck 2002 or older = Relay electrical system can be reused
+- New truck 2003 or newer = Must upgrade to 3-plug Isolation Module system (full rewire)
+- New truck 2010 or newer with FleetFlex = PT1 or PT8 (LED)
+- Straight Blade uses different harnesses than V-Blade/Wide-Out/Prodigy (different part numbers)
+- ALWAYS ask if customer has receiver pockets — they are NOT included with mount kit 31269-1
+- ALWAYS remind customer that controller is not included in any PT kit — list controller options
+
+Mount kit 31269-1 is vehicle-specific. Headlight harness and isolation module are vehicle-specific.
+Tell the customer these require a QuickMatch lookup at the shop — do not guess them.
+
+Plug Identification Page (share this link if customer is unsure of plug type):
+{_PLUG_ID_URL}
+
+TRANSFER SCENARIOS AND KITS:
+{_TRANSFER_DECISION_DATA}
+
+FULL KIT COMPONENT DETAILS (PT1–PT8):
+{_TRANSFER_KITS_DATA}
+
+Response Format — ALWAYS return valid JSON (no markdown fences, no prose outside JSON):
+{{
+  "message": "<reply — plain text, no HTML>",
+  "phase": "GATHER_OLD | GATHER_PLOW | GATHER_NEW | DETERMINE | COMMIT",
+  "parts_list": [
+    {{
+      "description": "<part description>",
+      "part_number": "<part number or empty string>",
+      "quantity": <int>,
+      "unit_price": "<price string or empty string>"
+    }}
+  ],
+  "pt_kit": "<PT kit number e.g. PT5, or empty string if not yet determined>",
+  "plug_id_url": "<plug ID page URL if relevant, else empty string>",
+  "vehicle_specific_needed": ["<list of items that require QuickMatch / shop lookup>"],
+  "ready_to_order": <true | false>
+}}
+
+Style: Professional, direct, concise. Zero filler. Technical accuracy first.
+If you are unsure of any detail — ASK. Never guess a part number.
+If the customer's scenario doesn't match any standard kit, say so and recommend they call the shop.
+
+STARTUP — On first interaction respond exactly:
+{{"message":"Welcome to the Plow Transfer Specialist.\\n\\nI'll help you determine exactly what you need to move your Western plow to a new truck — no guessing.\\n\\nLet's start with your OLD truck (the one the plow is currently on).\\nWhat year, make, and model is it?","phase":"GATHER_OLD","parts_list":[],"pt_kit":"","plug_id_url":"","vehicle_specific_needed":[],"ready_to_order":false}}
+"""
+
+# Transfer agent per-user state (separate from main chat state)
+_transfer_state: dict[str, dict] = {}
+_transfer_lock = threading.Lock()
+
+def _get_transfer_state(key: str) -> dict:
+    with _transfer_lock:
+        if key not in _transfer_state:
+            _transfer_state[key] = {"history": [], "cart": []}
+        return _transfer_state[key]
+
+def _reset_transfer_state(key: str) -> None:
+    with _transfer_lock:
+        _transfer_state.pop(key, None)
+
+
+@app.route("/westernchat/transfer/chat", methods=["POST"])
+def transfer_chat():
+    """Plow Transfer Agent — dedicated route, independent session state."""
+    client_ip = request.headers.get("X-Real-IP") or request.remote_addr or "unknown"
+    if not _check_rate_limit(client_ip):
+        return jsonify({"error": "Too many requests — please slow down."}), 429
+    data = request.get_json(silent=True) or {}
+    user_message = str(data.get("message", "")).strip()
+
+    key   = _user_key()
+    state = _get_transfer_state(key)
+
+    # Empty message on a fresh session = startup greeting (no OpenAI call needed)
+    if not user_message and not state["history"]:
+        startup = {
+            "message": (
+                "Welcome to the Plow Transfer Specialist.\n\n"
+                "I'll help you determine exactly what you need to move your Western plow "
+                "to a new truck — no guessing.\n\n"
+                "Let's start with your OLD truck (the one the plow is currently on).\n"
+                "What year, make, and model is it?"
+            ),
+            "phase": "GATHER_OLD",
+            "parts_list": [],
+            "pt_kit": "",
+            "plug_id_url": "",
+            "vehicle_specific_needed": [],
+            "ready_to_order": False,
+        }
+        return jsonify({**startup, "cart": []})
+
+    if not user_message:
+        return jsonify({"error": "message required"}), 400
+
+    history = state["history"]
+
+    # Append user turn
+    history.append({"role": "user", "content": user_message})
+
+    # Keep history bounded
+    if len(history) > MAX_HISTORY_TURNS * 2:
+        history = history[-(MAX_HISTORY_TURNS * 2):]
+        state["history"] = history
+
+    messages = [{"role": "system", "content": TRANSFER_SYSTEM_PROMPT}] + history
+
+    try:
+        resp = openai_client.chat.completions.create(
+            model=OPENAI_MODEL,
+            messages=messages,
+            temperature=0.2,
+            max_tokens=1200,
+            response_format={"type": "json_object"},
+        )
+    except Exception as exc:
+        logger.error("Transfer OpenAI error: %s", exc)
+        return jsonify({"error": "AI service error — please try again"}), 502
+
+    raw = resp.choices[0].message.content or "{}"
+
+    try:
+        ai = json.loads(raw)
+    except json.JSONDecodeError:
+        logger.error("Transfer bad JSON: %s", raw[:300])
+        ai = {"message": "Sorry, I had a technical issue. Please try again.",
+              "phase": "GATHER_OLD", "parts_list": [], "pt_kit": "",
+              "plug_id_url": "", "vehicle_specific_needed": [], "ready_to_order": False}
+
+    # Append assistant turn
+    history.append({"role": "assistant", "content": raw})
+
+    # Sync cart from parts_list when ready
+    parts_list = ai.get("parts_list") or []
+    if ai.get("ready_to_order") or ai.get("phase") == "COMMIT":
+        state["cart"] = parts_list
+
+    # Log interaction
+    _log_interaction({
+        "ts":      datetime.utcnow().isoformat(),
+        "src":     "transfer_agent",
+        "user":    user_message,
+        "phase":   ai.get("phase", ""),
+        "pt_kit":  ai.get("pt_kit", ""),
+    })
+
+    return jsonify({
+        "message":               ai.get("message", ""),
+        "phase":                 ai.get("phase", "GATHER_OLD"),
+        "parts_list":            parts_list,
+        "pt_kit":                ai.get("pt_kit", ""),
+        "plug_id_url":           ai.get("plug_id_url", ""),
+        "vehicle_specific_needed": ai.get("vehicle_specific_needed", []),
+        "ready_to_order":        ai.get("ready_to_order", False),
+        "cart":                  state["cart"],
+    })
+
+
+@app.route("/westernchat/transfer/reset", methods=["POST"])
+def transfer_reset():
+    """Reset transfer agent session state."""
+    _reset_transfer_state(_user_key())
+    return jsonify({"ok": True})
 
 
 _ADMIN_ALLOWED_IPS = {
