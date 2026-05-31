@@ -978,23 +978,10 @@ Style: Professional, direct, concise. Zero filler. Technical accuracy first.
 If you are unsure of any detail — ASK. Never guess a part number.
 If the customer's scenario doesn't match any standard kit, say so and recommend they call the shop.
 
-STARTUP — On first interaction respond exactly:
-{{"message":"Welcome to the Plow Transfer Specialist.\\n\\nI'll help you determine exactly what you need to move your Western plow to a new truck — no guessing.\\n\\nLet's start with your OLD truck (the one the plow is currently on).\\nWhat year, make, and model is it?","phase":"GATHER_OLD","parts_list":[],"pt_kit":"","plug_id_url":"","vehicle_specific_needed":[],"ready_to_order":false}}
+IMPORTANT: The startup greeting is handled by the server — your first response is to the customer's actual answer about their old truck. Do NOT re-introduce yourself or repeat the welcome message.
 """
 
-# Transfer agent per-user state (separate from main chat state)
-_transfer_state: dict[str, dict] = {}
-_transfer_lock = threading.Lock()
-
-def _get_transfer_state(key: str) -> dict:
-    with _transfer_lock:
-        if key not in _transfer_state:
-            _transfer_state[key] = {"history": [], "cart": []}
-        return _transfer_state[key]
-
-def _reset_transfer_state(key: str) -> None:
-    with _transfer_lock:
-        _transfer_state.pop(key, None)
+# Transfer agent state is stored in Flask filesystem session (shared across gunicorn workers)
 
 
 @app.route("/westernchat/transfer/chat", methods=["POST"])
@@ -1006,11 +993,11 @@ def transfer_chat():
     data = request.get_json(silent=True) or {}
     user_message = str(data.get("message", "")).strip()
 
-    key   = _user_key()
-    state = _get_transfer_state(key)
+    # Use Flask filesystem session — shared across gunicorn workers, no context loss
+    history = list(session.get("transfer_history", []))
 
     # Empty message on a fresh session = startup greeting (no OpenAI call needed)
-    if not user_message and not state["history"]:
+    if not user_message and not history:
         startup = {
             "message": (
                 "Welcome to the Plow Transfer Specialist.\n\n"
@@ -1031,15 +1018,12 @@ def transfer_chat():
     if not user_message:
         return jsonify({"error": "message required"}), 400
 
-    history = state["history"]
-
     # Append user turn
     history.append({"role": "user", "content": user_message})
 
     # Keep history bounded
     if len(history) > MAX_HISTORY_TURNS * 2:
         history = history[-(MAX_HISTORY_TURNS * 2):]
-        state["history"] = history
 
     messages = [{"role": "system", "content": TRANSFER_SYSTEM_PROMPT}] + history
 
@@ -1065,13 +1049,15 @@ def transfer_chat():
               "phase": "GATHER_OLD", "parts_list": [], "pt_kit": "",
               "plug_id_url": "", "vehicle_specific_needed": [], "ready_to_order": False}
 
-    # Append assistant turn
+    # Append assistant turn and persist to Flask session
     history.append({"role": "assistant", "content": raw})
+    session["transfer_history"] = history
+    session.modified = True
 
-    # Sync cart from parts_list when ready
     parts_list = ai.get("parts_list") or []
     if ai.get("ready_to_order") or ai.get("phase") == "COMMIT":
-        state["cart"] = parts_list
+        session["transfer_cart"] = parts_list
+        session.modified = True
 
     # Log interaction
     _log_interaction({
@@ -1090,14 +1076,16 @@ def transfer_chat():
         "plug_id_url":           ai.get("plug_id_url", ""),
         "vehicle_specific_needed": ai.get("vehicle_specific_needed", []),
         "ready_to_order":        ai.get("ready_to_order", False),
-        "cart":                  state["cart"],
+        "cart":                  session.get("transfer_cart", []),
     })
 
 
 @app.route("/westernchat/transfer/reset", methods=["POST"])
 def transfer_reset():
     """Reset transfer agent session state."""
-    _reset_transfer_state(_user_key())
+    session.pop("transfer_history", None)
+    session.pop("transfer_cart", None)
+    session.modified = True
     return jsonify({"ok": True})
 
 

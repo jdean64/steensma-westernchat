@@ -611,6 +611,11 @@
         <div class="step"        id="txstep-DETERMINE">4 · Parts List</div>
     </div>
     <div id="transferChatArea"></div>
+    <div id="transferCartBar" style="display:none;padding:10px 12px;background:var(--bg2);border-top:2px solid var(--green);flex-shrink:0">
+        <div style="font-size:10px;color:var(--muted);text-align:center;margin-bottom:6px">Prices subject to change</div>
+        <button onclick="WestChat.openOrderModal()"
+                style="width:100%;background:var(--green);color:#0f172a;border:none;border-radius:6px;padding:10px 0;font-size:13px;font-weight:700;cursor:pointer">✔ Submit Order</button>
+    </div>
     <div id="transferInputBar">
         <form id="transferForm">
             <textarea id="transferInput"
@@ -1492,14 +1497,10 @@ const WestChat = (() => {
                     transferCart = parts;
                     updateCart(parts);
                     btn.disabled    = true;
-                    btn.textContent = '✔ Added to Cart — click Submit Order';
-                    // Show cart panel
-                    const cartPanel = $('cartPanel');
-                    if (cartPanel) {
-                        cartPanel.classList.add('open');
-                        const cartToggle = $('cartToggle');
-                        if (cartToggle) cartToggle.style.display = '';
-                    }
+                    btn.textContent = '✔ Added to Cart';
+                    // Show the transfer-panel submit bar (cart panel is inside hidden mainRow)
+                    const cartBar = $('transferCartBar');
+                    if (cartBar) cartBar.style.display = '';
                 };
                 card.appendChild(btn);
             }
@@ -1525,9 +1526,11 @@ const WestChat = (() => {
         transferCart  = [];
         setTransferPhase('GATHER_OLD');
 
-        // Clear previous chat
+        // Clear previous chat and hide cart bar
         const area = $('transferChatArea');
         if (area) area.innerHTML = '';
+        const cartBar = $('transferCartBar');
+        if (cartBar) cartBar.style.display = 'none';
 
         // Fire opening message from server
         await sendTransfer('__init__');
@@ -1544,6 +1547,8 @@ const WestChat = (() => {
         if (txPanel)   txPanel.classList.remove('active');
         if (mainRow)   mainRow.style.display   = '';
         if (progStrip) progStrip.style.display = '';
+        const cartBar2 = $('transferCartBar');
+        if (cartBar2) cartBar2.style.display = 'none';
     }
 
     async function sendTransfer(text) {
