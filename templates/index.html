@@ -1,0 +1,1260 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Western Chat — Western Parts Order</title>
+    <meta name="description" content="Western Parts Order Processing — Steensma Lawn & Power">
+    <meta name="theme-color" content="#0f172a">
+    <meta name="robots" content="noindex, nofollow">
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        :root {
+            --bg:        #0f172a;
+            --bg2:       #1e293b;
+            --border:    #334155;
+            --accent:    #f59e0b;
+            --accent2:   #d97706;
+            --text:      #e2e8f0;
+            --muted:     #94a3b8;
+            --green:     #4ade80;
+            --red:       #f87171;
+            --blue:      #38bdf8;
+            --danger-bg: rgba(239,68,68,0.1);
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            height: 100dvh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        /* ── Header ──────────────────────────────────────────────────────── */
+        header {
+            background: var(--bg2);
+            border-bottom: 2px solid var(--border);
+            padding: 10px 20px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-shrink: 0;
+        }
+        .hd-left { display: flex; align-items: center; gap: 12px; }
+        .hd-logo { height: 36px; border-radius: 6px; }
+        .hd-title { font-size: 16px; font-weight: 700; color: #f8fafc; }
+        .hd-sub   { font-size: 11px; color: var(--muted); margin-top: 2px; }
+        .badge {
+            display: inline-flex; align-items: center; gap: 4px;
+            padding: 2px 8px; border-radius: 12px;
+            font-size: 10px; font-weight: 700; letter-spacing: 0.5px;
+        }
+        .badge-phase {
+            background: rgba(245,158,11,0.15);
+            color: var(--accent);
+            border: 1px solid rgba(245,158,11,0.3);
+        }
+        .badge-live {
+            background: rgba(74,222,128,0.12);
+            color: var(--green);
+            border: 1px solid rgba(74,222,128,0.3);
+            animation: pulse-dot 2s infinite;
+        }
+        @keyframes pulse-dot {
+            0%,100% { opacity: 1; }
+            50%      { opacity: 0.6; }
+        }
+        .hd-right { display: flex; gap: 8px; align-items: center; }
+        #phaseLabel { transition: all 0.3s; }
+        .btn-sm {
+            background: rgba(255,255,255,0.06);
+            border: 1px solid var(--border);
+            color: var(--muted);
+            padding: 5px 12px; border-radius: 8px;
+            font-size: 12px; cursor: pointer;
+            transition: background 0.2s;
+        }
+        .btn-sm:hover { background: rgba(255,255,255,0.12); color: var(--text); }
+
+        /* ── Progress strip ─────────────────────────────────────────────── */
+        #progressStrip {
+            display: flex; gap: 0; flex-shrink: 0;
+            border-bottom: 1px solid var(--border);
+        }
+        .step {
+            flex: 1; text-align: center; padding: 6px 4px;
+            font-size: 10px; font-weight: 700; text-transform: uppercase;
+            letter-spacing: 0.8px; color: var(--muted);
+            border-right: 1px solid var(--border);
+            transition: all 0.3s;
+        }
+        .step:last-child { border-right: none; }
+        .step.active   { background: rgba(245,158,11,0.1); color: var(--accent); }
+        .step.done     { background: rgba(74,222,128,0.07); color: var(--green); }
+        .step.escalate { background: var(--danger-bg); color: var(--red); }
+
+        /* ── Chat area ───────────────────────────────────────────────────── */
+        #chatArea {
+            flex: 1;
+            overflow-y: auto;
+            padding: 16px 20px;
+            scroll-behavior: smooth;
+        }
+        #chatArea::-webkit-scrollbar { width: 5px; }
+        #chatArea::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+        /* ── Welcome ─────────────────────────────────────────────────────── */
+        #welcome {
+            background: var(--bg2);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 24px;
+            text-align: center;
+            margin-bottom: 16px;
+        }
+        #welcome h2 { color: var(--accent); font-size: 18px; margin-bottom: 8px; }
+        #welcome p  { color: var(--muted); font-size: 13px; line-height: 1.7; }
+
+        /* ── Messages ────────────────────────────────────────────────────── */
+        .msg {
+            display: flex; gap: 10px; margin-bottom: 14px;
+            animation: fadeUp 0.25s ease-out;
+        }
+        @keyframes fadeUp {
+            from { opacity: 0; transform: translateY(6px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+        .msg.user { flex-direction: row-reverse; }
+
+        .avatar {
+            width: 32px; height: 32px; border-radius: 9px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 14px; flex-shrink: 0; font-weight: 700;
+        }
+        .msg.bot  .avatar { background: linear-gradient(135deg, var(--accent), var(--accent2)); color: white; }
+        .msg.user .avatar { background: #3b82f6; color: white; }
+
+        .bubble {
+            max-width: 84%; padding: 11px 15px;
+            border-radius: 14px; font-size: 14px; line-height: 1.65; word-break: break-word;
+        }
+        .msg.bot  .bubble { background: var(--bg2); border: 1px solid var(--border); color: var(--text); }
+        .msg.user .bubble { background: #3b82f6; color: white; }
+
+        /* ── Phase cards (rendered inside bot bubble) ─────────────────────── */
+        .card {
+            margin-top: 10px; padding: 12px 14px;
+            border-radius: 10px; font-size: 13px;
+        }
+        .card.commit  { background: rgba(245,158,11,0.08); border: 1px solid rgba(245,158,11,0.25); }
+        .card.execute { background: rgba(74,222,128,0.07); border: 1px solid rgba(74,222,128,0.25); }
+        .card.escalate{ background: var(--danger-bg);       border: 1px solid rgba(239,68,68,0.3); }
+
+        .card-label {
+            font-size: 10px; font-weight: 700; text-transform: uppercase;
+            letter-spacing: 0.8px; margin-bottom: 8px;
+        }
+        .card.commit   .card-label { color: var(--accent); }
+        .card.execute  .card-label { color: var(--green); }
+        .card.escalate .card-label { color: var(--red); }
+
+        .card-row { display: flex; justify-content: space-between; margin: 3px 0; font-size: 12px; }
+        .card-row span:first-child { color: var(--muted); }
+        .card-row span:last-child  { color: var(--text); font-weight: 600; }
+
+        /* ── Payment link button ─────────────────────────────────────────── */
+        .pay-btn {
+            display: inline-block; margin-top: 10px;
+            background: linear-gradient(135deg, #10b981, #059669);
+            color: white; font-weight: 700; font-size: 13px;
+            padding: 9px 18px; border-radius: 10px;
+            text-decoration: none; transition: transform 0.15s, box-shadow 0.15s;
+        }
+        .pay-btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 14px rgba(16,185,129,0.35);
+            color: white;
+        }
+
+        /* ── Doc link cards ───────────────────────────────────────────────── */
+        .docs-section {
+            margin-top: 10px; padding: 10px 12px;
+            background: rgba(56,189,248,0.07);
+            border: 1px solid rgba(56,189,248,0.25);
+            border-radius: 10px;
+        }
+        .docs-label {
+            font-size: 10px; font-weight: 700; text-transform: uppercase;
+            letter-spacing: 0.8px; color: var(--blue); margin-bottom: 8px;
+        }
+        .doc-link {
+            display: flex; align-items: center; gap: 8px;
+            padding: 6px 0; border-bottom: 1px solid rgba(56,189,248,0.1);
+            text-decoration: none; color: var(--text); font-size: 13px;
+            transition: color 0.15s;
+        }
+        .doc-link:last-child { border-bottom: none; }
+        .doc-link:hover { color: var(--blue); }
+        .doc-icon { font-size: 15px; flex-shrink: 0; }
+
+        /* ── Confidence bar ─────────────────────────────────────────────── */
+        .conf-wrap { margin-top: 8px; }
+        .conf-bar {
+            height: 4px; border-radius: 2px;
+            background: var(--border); overflow: hidden;
+        }
+        .conf-fill {
+            height: 100%; border-radius: 2px; transition: width 0.4s;
+        }
+        .conf-label { font-size: 10px; color: var(--muted); margin-top: 3px; text-align: right; }
+
+        /* ── Typing indicator ────────────────────────────────────────────── */
+        #typing {
+            display: none; padding: 0 20px 10px;
+            color: var(--muted); font-style: italic; font-size: 13px;
+            align-items: center; gap: 8px; flex-shrink: 0;
+        }
+        #typing.show { display: flex; }
+        .dots span {
+            display: inline-block; width: 5px; height: 5px; border-radius: 50%;
+            background: var(--muted); margin: 0 2px;
+            animation: blink 1.4s infinite;
+        }
+        .dots span:nth-child(2) { animation-delay: 0.2s; }
+        .dots span:nth-child(3) { animation-delay: 0.4s; }
+        @keyframes blink { 0%,80%,100% { opacity: 0.25; } 40% { opacity: 1; } }
+
+        /* ── Input bar ───────────────────────────────────────────────────── */
+        #inputBar {
+            padding: 10px 20px;
+            background: var(--bg2);
+            border-top: 1px solid var(--border);
+            flex-shrink: 0;
+        }
+        #inputForm {
+            display: flex; gap: 8px; align-items: flex-end;
+        }
+        #msgInput {
+            flex: 1; padding: 10px 14px;
+            background: var(--bg); border: 2px solid var(--border);
+            border-radius: 12px; font-size: 14px; color: var(--text);
+            font-family: inherit; resize: none;
+            min-height: 42px; max-height: 110px; outline: none;
+        }
+        #msgInput::placeholder { color: #64748b; }
+        #msgInput:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(245,158,11,0.12); }
+        #sendBtn {
+            background: linear-gradient(135deg, var(--accent), var(--accent2));
+            color: white; border: none; padding: 10px 20px;
+            border-radius: 12px; font-size: 14px; font-weight: 700;
+            cursor: pointer; font-family: inherit; flex-shrink: 0;
+            transition: transform 0.15s, box-shadow 0.15s;
+        }
+        #sendBtn:hover:not(:disabled) {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(245,158,11,0.3);
+        }
+        #sendBtn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+        /* ── Quick-start chips ──────────────────────────────────────────── */
+        #quickRow {
+            background: var(--bg2);
+            border-bottom: 1px solid var(--border);
+            padding: 8px 20px; flex-shrink: 0;
+        }
+        .qr-label {
+            font-size: 10px; font-weight: 700; color: #64748b;
+            text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px;
+        }
+        .qr-chips { display: flex; gap: 6px; flex-wrap: wrap; }
+        .chip {
+            background: var(--bg); border: 1px solid var(--border);
+            color: var(--muted); padding: 4px 12px; border-radius: 16px;
+            font-size: 11px; cursor: pointer; font-family: inherit;
+            transition: all 0.2s;
+        }
+        .chip:hover { background: var(--accent); color: white; border-color: var(--accent); }
+
+        /* ── Footer ──────────────────────────────────────────────────────── */
+        footer {
+            text-align: center; padding: 6px;
+            font-size: 10px; color: #475569;
+            background: var(--bg); border-top: 1px solid #1e293b;
+            flex-shrink: 0;
+        }
+        footer a { color: #64748b; text-decoration: none; }
+
+        /* ── Responsive ──────────────────────────────────────────────────── */
+        @media (max-width: 640px) {
+            header { padding: 8px 12px; }
+            .hd-sub, .badge-live { display: none; }
+            #chatArea { padding: 12px; }
+            #inputBar { padding: 8px 12px; }
+            .bubble { max-width: 93%; font-size: 13px; }
+        }
+        /* ── Main layout row ─────────────────────────────────────────────────── */
+        #mainRow {
+            flex: 1;
+            display: flex;
+            overflow: hidden;
+        }
+        #chatCol {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            min-width: 0;
+        }
+
+        /* ── Order cart panel ────────────────────────────────────────────────── */
+        #cartPanel {
+            width: 260px;
+            border-left: 1px solid var(--border);
+            background: var(--bg2);
+            display: flex;
+            flex-direction: column;
+            flex-shrink: 0;
+        }
+        .cart-hd {
+            padding: 12px 14px 10px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-shrink: 0;
+        }
+        .cart-hd-title { font-size: 13px; font-weight: 700; color: var(--text); }
+        .cart-count    { font-size: 11px; color: var(--muted); }
+        #cartItems {
+            flex: 1;
+            overflow-y: auto;
+            padding: 4px 0;
+        }
+        #cartItems::-webkit-scrollbar { width: 4px; }
+        #cartItems::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+        .cart-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 8px;
+            padding: 9px 14px;
+            border-bottom: 1px solid rgba(51,65,85,0.5);
+            animation: fadeUp 0.2s ease-out;
+        }
+        .cart-item-body { flex: 1; min-width: 0; }
+        .cart-item-desc {
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text);
+            line-height: 1.4;
+            word-break: break-word;
+        }
+        .cart-item-meta {
+            font-size: 11px;
+            color: var(--muted);
+            margin-top: 3px;
+        }
+        .cart-remove {
+            background: none;
+            border: none;
+            color: var(--muted);
+            cursor: pointer;
+            font-size: 18px;
+            padding: 0 2px;
+            flex-shrink: 0;
+            line-height: 1;
+            transition: color 0.15s;
+        }
+        .cart-remove:hover { color: var(--red); }
+        .cart-empty {
+            padding: 24px 14px;
+            font-size: 12px;
+            color: var(--muted);
+            text-align: center;
+            line-height: 1.7;
+        }
+        .cart-footer {
+            padding: 10px 14px;
+            border-top: 1px solid var(--border);
+            flex-shrink: 0;
+        }
+        /* Mobile: hide cart sidebar, show toggle button in header */
+        @media (max-width: 768px) {
+            #cartPanel {
+                display: none;
+                position: fixed;
+                right: 0; top: 0; bottom: 0;
+                width: 260px;
+                z-index: 100;
+                box-shadow: -4px 0 24px rgba(0,0,0,0.5);
+            }
+            #cartPanel.open { display: flex; }
+            #cartToggle { display: flex !important; align-items: center; gap: 4px; }
+        }    </style>
+</head>
+<body>
+
+<!-- ── Header ──────────────────────────────────────────────────────────────── -->
+<header>
+    <div class="hd-left">
+        <img src="/westernchat/static/dealer-logo.png" class="hd-logo" alt="Steensma Lawn &amp; Power">
+        <div>
+            <div class="hd-title">Western Chat
+                <span class="badge badge-live" id="liveDot">&#9679; LIVE</span>
+            </div>
+            <div class="hd-sub">Western Parts — Steensma Lawn &amp; Power</div>
+        </div>
+    </div>
+    <div class="hd-right">
+        <span class="badge badge-phase" id="phaseLabel">IDENTIFY</span>
+        <button class="btn-sm" id="cartToggle" style="display:none" onclick="WestChat.toggleCart()">🛒 <span id="cartBadgeHdr"></span></button>
+        <button class="btn-sm" onclick="WestChat.reset()">New Order</button>
+    </div>
+</header>
+
+<!-- ── Progress strip ─────────────────────────────────────────────────────── -->
+<div id="progressStrip">
+    <div class="step active" id="step-IDENTIFY">1 · Identify</div>
+    <div class="step"        id="step-COMMIT">2 · Commit</div>
+    <div class="step"        id="step-SUBMIT">3 · Submit</div>
+</div>
+
+<!-- ── Main row (chat col + cart panel) ───────────────────────────────────── -->
+<div id="mainRow"><div id="chatCol">
+
+<!-- ── Quick-start chips ──────────────────────────────────────────────────── -->
+<div id="quickRow">
+    <div class="qr-label">Quick Start</div>
+    <div class="qr-chips">
+        <button class="chip" onclick="WestChat.prefill('I need a cutting edge for a Western MVP Plus 8.5 ft')">Cutting Edge</button>
+        <button class="chip" onclick="WestChat.prefill('Transfer my Western plow from a 2019 Chevy 2500 to a 2024 Ford F-250')">Plow Transfer</button>
+        <button class="chip" onclick="WestChat.prefill('Hydraulic ram assembly for a 7.5 ft Pro Plus')">Hydraulic Ram</button>
+        <button class="chip" onclick="WestChat.prefill('Headlight wiring harness for Wide-Out')">Wiring Harness</button>
+        <button class="chip" onclick="WestChat.prefill('A-frame mount for a 2022 Ram 2500')">A-Frame Mount</button>
+    </div>
+</div>
+
+<!-- ── Chat area ──────────────────────────────────────────────────────────── -->
+<div id="chatArea">
+    <div id="welcome">
+        <h2>Western Chat</h2>
+        <p>Expert parts identification and order processing for Western snow plows.<br>
+           Tell me what you need and I'll identify the right part, confirm the order, and get you a checkout link.</p>
+    </div>
+</div>
+
+<!-- ── Typing indicator ───────────────────────────────────────────────────── -->
+<div id="typing">
+    <div class="dots"><span></span><span></span><span></span></div>
+    <span>Processing&hellip;</span>
+</div>
+
+<!-- ── Input bar ─────────────────────────────────────────────────────────── -->
+<div id="inputBar">
+    <form id="inputForm">
+        <textarea id="msgInput"
+                  placeholder="Describe the part or plow you need…"
+                  rows="1"
+                  autocomplete="off"
+                  maxlength="2000"></textarea>
+        <button type="submit" id="sendBtn">Send</button>
+    </form>
+</div>
+
+</div><!-- /chatCol -->
+
+<!-- ── Order Cart panel ───────────────────────────────────────────────────── -->
+<aside id="cartPanel">
+    <div class="cart-hd">
+        <span class="cart-hd-title">🛒 Order Cart</span>
+        <span class="cart-count" id="cartCount">0 items</span>
+    </div>
+    <div id="cartItems">
+        <div class="cart-empty" id="cartEmpty">No items yet.<br>Describe what you need to start.</div>
+    </div>
+    <div class="cart-footer" id="cartFooter" style="display:none">
+        <div style="font-size:10px;color:var(--muted);text-align:center;margin-bottom:6px;opacity:0.7">Prices subject to change</div>
+        <button id="cartSubmitBtn"
+                style="width:100%;text-align:center;background:var(--green);color:#0f172a;border:none;border-radius:6px;padding:9px 0;font-size:13px;font-weight:700;cursor:pointer;margin-bottom:6px"
+                onclick="WestChat.openOrderModal()">✔ Submit Order</button>
+        <button class="btn-sm" style="width:100%;text-align:center;font-size:11px;color:var(--muted);border-color:rgba(100,116,139,0.3)" onclick="WestChat.reset()">✕ New Order</button>
+    </div>
+</aside>
+
+</div><!-- /mainRow -->
+
+<!-- ── Footer ────────────────────────────────────────────────────────────── -->
+<footer>
+    &copy; 2026 Steensma Lawn &amp; Power &middot;
+    <a href="https://steensmalawn.com" target="_blank" rel="noopener">steensmalawn.com</a>
+    &middot; Kalamazoo &middot; Battle Creek &middot; Plainwell, MI
+</footer>
+
+<!-- ── Order submission modal ────────────────────────────────────────────── -->
+<div id="orderModalOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:200;display:none;align-items:center;justify-content:center;padding:16px">
+    <div id="orderModal" style="background:var(--bg2);border:1px solid var(--border);border-radius:12px;width:100%;max-width:460px;padding:28px 24px;position:relative">
+        <button onclick="WestChat.closeOrderModal()" style="position:absolute;top:12px;right:14px;background:none;border:none;color:var(--muted);font-size:20px;cursor:pointer;line-height:1">×</button>
+        <h2 style="margin:0 0 4px;font-size:16px;color:var(--text)">Complete Your Order</h2>
+        <p style="margin:0 0 20px;font-size:12px;color:var(--muted)">We'll confirm availability and contact you to finalize pricing &amp; shipping. <em>Prices subject to change.</em></p>
+
+        <form id="orderForm" onsubmit="WestChat.submitOrder(event)" novalidate>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px 12px">
+                <div style="grid-column:1/-1">
+                    <label style="display:block;font-size:11px;color:var(--muted);margin-bottom:4px">Full Name <span style="color:var(--red)">*</span></label>
+                    <input id="of-name" type="text" autocomplete="name" required maxlength="120"
+                           style="width:100%;box-sizing:border-box;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:8px 10px;font-size:13px">
+                </div>
+                <div>
+                    <label style="display:block;font-size:11px;color:var(--muted);margin-bottom:4px">Email <span style="color:var(--red)">*</span></label>
+                    <input id="of-email" type="email" autocomplete="email" required maxlength="200"
+                           style="width:100%;box-sizing:border-box;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:8px 10px;font-size:13px">
+                </div>
+                <div>
+                    <label style="display:block;font-size:11px;color:var(--muted);margin-bottom:4px">Phone</label>
+                    <input id="of-phone" type="tel" autocomplete="tel" maxlength="30"
+                           style="width:100%;box-sizing:border-box;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:8px 10px;font-size:13px">
+                </div>
+                <div style="grid-column:1/-1">
+                    <label style="display:block;font-size:11px;color:var(--muted);margin-bottom:4px">Street Address</label>
+                    <input id="of-address" type="text" autocomplete="street-address" maxlength="200"
+                           style="width:100%;box-sizing:border-box;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:8px 10px;font-size:13px">
+                </div>
+                <div>
+                    <label style="display:block;font-size:11px;color:var(--muted);margin-bottom:4px">City</label>
+                    <input id="of-city" type="text" autocomplete="address-level2" maxlength="100"
+                           style="width:100%;box-sizing:border-box;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:8px 10px;font-size:13px">
+                </div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:0 8px">
+                    <div>
+                        <label style="display:block;font-size:11px;color:var(--muted);margin-bottom:4px">State</label>
+                        <input id="of-state" type="text" autocomplete="address-level1" maxlength="30"
+                               style="width:100%;box-sizing:border-box;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:8px 10px;font-size:13px">
+                    </div>
+                    <div>
+                        <label style="display:block;font-size:11px;color:var(--muted);margin-bottom:4px">ZIP</label>
+                        <input id="of-zip" type="text" autocomplete="postal-code" maxlength="15"
+                               style="width:100%;box-sizing:border-box;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:8px 10px;font-size:13px">
+                    </div>
+                </div>
+            </div>
+
+            <p id="orderFormError" style="display:none;color:var(--red);font-size:12px;margin:10px 0 0"></p>
+
+            <div style="display:flex;gap:10px;margin-top:18px">
+                <button type="button" onclick="WestChat.closeOrderModal()"
+                        style="flex:1;background:none;border:1px solid var(--border);border-radius:6px;color:var(--muted);padding:9px;font-size:13px;cursor:pointer">Cancel</button>
+                <button type="submit" id="orderSubmitBtn"
+                        style="flex:2;background:var(--green);border:none;border-radius:6px;color:#0f172a;padding:9px;font-size:13px;font-weight:700;cursor:pointer">Send Order →</button>
+            </div>
+        </form>
+
+        <!-- success state (hidden until submitted) -->
+        <div id="orderSuccess" style="display:none;text-align:center;padding:20px 0">
+            <div style="font-size:32px;margin-bottom:12px">✅</div>
+            <div style="font-size:15px;font-weight:700;color:var(--green);margin-bottom:8px">Order Submitted!</div>
+            <div id="orderSuccessMsg" style="font-size:13px;color:var(--muted);line-height:1.6"></div>
+        </div>
+    </div>
+</div>
+
+<script>
+/* ============================================================
+   Western Chat — client-side controller
+   SECURITY: All AI/server text is plain-text and escaped via
+   textContent before DOM insertion. No eval(), no innerHTML
+   for untrusted content.
+   ============================================================ */
+const WestChat = (() => {
+    'use strict';
+
+    // ── Helpers ──────────────────────────────────────────────────────────────
+    const $ = id => document.getElementById(id);
+
+    // Escape any string before inserting into HTML attributes or text nodes.
+    // All message content goes through textContent, not innerHTML.
+    function escHtml(s) {
+        return String(s ?? '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+    }
+
+    // Validate that a URL is https:// only before using it as an href.
+    function safeHref(url) {
+        try {
+            const u = new URL(url);
+            return u.protocol === 'https:' ? url : '#';
+        } catch { return '#'; }
+    }
+
+    // ── State ─────────────────────────────────────────────────────────────────
+    let currentPhase = 'IDENTIFY';
+    let initialized  = false;
+    let busy         = false;
+    let currentCart  = [];
+
+    const PHASES = ['IDENTIFY', 'COMMIT', 'SUBMIT'];
+
+    // ── Phase UI ──────────────────────────────────────────────────────────────
+    function setPhase(phase) {
+        currentPhase = phase;
+        $('phaseLabel').textContent = phase;
+
+        PHASES.forEach(p => {
+            const el = $('step-' + p);
+            if (!el) return;
+            el.className = 'step';
+            if (phase === 'ESCALATE') {
+                el.classList.add('escalate');
+            } else {
+                const idx = PHASES.indexOf(p);
+                const cur = PHASES.indexOf(phase);
+                if (idx < cur)  el.classList.add('done');
+                if (idx === cur) el.classList.add('active');
+            }
+        });
+    }
+
+    // ── Append message bubble ─────────────────────────────────────────────────
+    function appendUserBubble(text) {
+        const area = $('chatArea');
+        const row  = document.createElement('div');
+        row.className = 'msg user';
+
+        const av  = document.createElement('div');
+        av.className = 'avatar';
+        av.textContent = '👤';
+
+        const bub = document.createElement('div');
+        bub.className = 'bubble';
+        bub.textContent = text;   // plain textContent — safe
+
+        row.appendChild(bub);
+        row.appendChild(av);
+        area.appendChild(row);
+        scrollBottom();
+    }
+
+    function appendBotBubble(data) {
+        const area = $('chatArea');
+        const row  = document.createElement('div');
+        row.className = 'msg bot';
+
+        const av  = document.createElement('div');
+        av.className = 'avatar';
+        av.textContent = 'W';
+
+        const bub = document.createElement('div');
+        bub.className = 'bubble';
+
+        // Main message text — textContent only
+        const msgP = document.createElement('p');
+        msgP.textContent = data.message || '';
+        bub.appendChild(msgP);
+
+        // ── Phase card ────────────────────────────────────────────────────────
+        const phase = (data.phase || 'IDENTIFY').toUpperCase();
+        const hasList = data.parts_list && data.parts_list.length > 0;
+
+        if (phase === 'COMMIT') {
+            if (hasList) {
+                bub.appendChild(buildPartsListCard(data.parts_list, '✓ Order Confirmed — Click Submit Order in your cart', 'commit'));
+            } else if (data.part) {
+                bub.appendChild(buildCommitCard(data.part));
+            }
+        }
+
+        if (phase === 'ESCALATE' || data.escalate) {
+            bub.appendChild(buildEscalateCard(data));
+        }
+        // ── Document links ────────────────────────────────────────────────────
+        if (data.docs && data.docs.length > 0) {
+            bub.appendChild(buildDocsSection(data.docs));
+        }
+        // ── Confidence bar ────────────────────────────────────────────────────
+        const conf = parseFloat(data.confidence ?? 1);
+        if (!isNaN(conf)) {
+            bub.appendChild(buildConfBar(conf));
+        }
+
+        row.appendChild(av);
+        row.appendChild(bub);
+        area.appendChild(row);
+        scrollBottom();
+    }
+
+    // Doc link section builder
+    function buildDocsSection(docs) {
+        const section = document.createElement('div');
+        section.className = 'docs-section';
+
+        const lbl = document.createElement('div');
+        lbl.className = 'docs-label';
+        lbl.textContent = '\uD83D\uDCC4 Reference Documents';
+        section.appendChild(lbl);
+
+        docs.forEach(doc => {
+            if (!doc || !doc.url || !doc.title) return;
+
+            // Validate URL is a /westernchat/docs/ path — no external URLs injected
+            const url = String(doc.url);
+            if (!url.startsWith('/westernchat/docs/')) return;
+
+            const a = document.createElement('a');
+            a.className = 'doc-link';
+            a.href      = url;
+            a.target    = '_blank';
+            a.rel       = 'noopener noreferrer';
+
+            const icon = document.createElement('span');
+            icon.className   = 'doc-icon';
+            icon.textContent = '\uD83D\uDCCB';  // clipboard emoji
+
+            const title = document.createElement('span');
+            title.textContent = String(doc.title);
+
+            a.appendChild(icon);
+            a.appendChild(title);
+            section.appendChild(a);
+        });
+
+        return section;
+    }
+
+    function buildConfBar(conf) {
+        const pct   = Math.round(conf * 100);
+        const color = conf >= 0.85 ? '#10b981' : conf >= 0.65 ? '#f59e0b' : '#ef4444';
+        const wrap  = document.createElement('div');
+        wrap.className = 'conf-wrap';
+        wrap.innerHTML =
+            '<div class="conf-bar"><div class="conf-fill" style="width:' +
+            pct + '%;background:' + color + '"></div></div>' +
+            '<div class="conf-label">' + pct + '% confidence</div>';
+        return wrap;
+    }
+
+    // Multi-item parts list card
+    function buildPartsListCard(items, label, theme) {
+        const card = document.createElement('div');
+        card.className = 'card ' + (theme || 'commit');
+
+        const lbl = document.createElement('div');
+        lbl.className = 'card-label';
+        lbl.textContent = label;
+        card.appendChild(lbl);
+
+        items.forEach((item, idx) => {
+            const section = document.createElement('div');
+            section.style.cssText = idx > 0
+                ? 'border-top:1px solid rgba(255,255,255,0.08);margin-top:8px;padding-top:8px'
+                : '';
+
+            const rows = [
+                ['Part',       item.description  || '—'],
+                ['Part #',     item.part_number  || 'TBD'],
+                ['Qty',        String(item.quantity ?? 1)],
+                ['Unit Price', item.unit_price   || 'Contact for pricing'],
+            ];
+            rows.forEach(([k, v]) => {
+                const r  = document.createElement('div');
+                r.className = 'card-row';
+                const k1 = document.createElement('span'); k1.textContent = k;
+                const v1 = document.createElement('span'); v1.textContent = v;
+                r.appendChild(k1); r.appendChild(v1);
+                section.appendChild(r);
+            });
+            card.appendChild(section);
+        });
+        return card;
+    }
+
+    // Contact summary card (shown in EXECUTE)
+    function buildContactCard(contact) {
+        if (!contact || (!contact.name && !contact.email && !contact.phone)) return document.createDocumentFragment();
+        const card = document.createElement('div');
+        card.className = 'card execute';
+
+        const lbl = document.createElement('div');
+        lbl.className = 'card-label';
+        lbl.textContent = '👤 Contact Captured';
+        card.appendChild(lbl);
+
+        [['Name', contact.name], ['Email', contact.email], ['Phone', contact.phone]].forEach(([k, v]) => {
+            if (!v) return;
+            const r  = document.createElement('div');
+            r.className = 'card-row';
+            const k1 = document.createElement('span'); k1.textContent = k;
+            const v1 = document.createElement('span'); v1.textContent = v;
+            r.appendChild(k1); r.appendChild(v1);
+            card.appendChild(r);
+        });
+        return card;
+    }
+
+    // Order sent confirmation card
+    function buildOrderSentCard(contact) {
+        const card = document.createElement('div');
+        card.className = 'card execute';
+        card.style.cssText = 'border-color:#10b981;background:rgba(16,185,129,0.08)';
+
+        const lbl = document.createElement('div');
+        lbl.className = 'card-label';
+        lbl.style.color = '#10b981';
+        lbl.textContent = '✅ Order Summary Sent';
+        card.appendChild(lbl);
+
+        const note = document.createElement('p');
+        note.style.cssText = 'font-size:12px;color:var(--muted);margin-top:4px';
+        const email = (contact || {}).email;
+        note.textContent = email
+            ? `A copy has been sent to ${email} and forwarded to the shop.`
+            : 'Your order has been forwarded to the shop. We will follow up shortly.';
+        card.appendChild(note);
+        return card;
+    }
+
+    // Isolated card builders — all values via textContent
+    function buildCommitCard(part) {
+        const card = document.createElement('div');
+        card.className = 'card commit';
+
+        const lbl = document.createElement('div');
+        lbl.className = 'card-label';
+        lbl.textContent = '✓ Part Identified — Awaiting Confirmation';
+        card.appendChild(lbl);
+
+        const rows = [
+            ['Part',        part.description  || '—'],
+            ['Part Number', part.part_number  || 'TBD'],
+            ['Quantity',    String(part.quantity ?? 1)],
+            ['Unit Price',  part.unit_price   || 'Contact for pricing'],
+        ];
+        rows.forEach(([k, v]) => {
+            const r  = document.createElement('div');
+            r.className = 'card-row';
+            const k1 = document.createElement('span'); k1.textContent = k;
+            const v1 = document.createElement('span'); v1.textContent = v;
+            r.appendChild(k1); r.appendChild(v1);
+            card.appendChild(r);
+        });
+        return card;
+    }
+
+    function buildExecuteCard(part, contact, paymentLink) {
+        const card = document.createElement('div');
+        card.className = 'card execute';
+
+        const lbl = document.createElement('div');
+        lbl.className = 'card-label';
+        lbl.textContent = '🛒 Order Ready';
+        card.appendChild(lbl);
+
+        const partRows = [
+            ['Part',        (part || {}).description  || '—'],
+            ['Part Number', (part || {}).part_number  || '—'],
+            ['Qty',         String((part || {}).quantity ?? 1)],
+        ];
+        partRows.forEach(([k, v]) => {
+            const r  = document.createElement('div');
+            r.className = 'card-row';
+            const k1 = document.createElement('span'); k1.textContent = k;
+            const v1 = document.createElement('span'); v1.textContent = v;
+            r.appendChild(k1); r.appendChild(v1);
+            card.appendChild(r);
+        });
+
+        if (contact) {
+            const sep = document.createElement('div');
+            sep.style.cssText = 'border-top:1px solid rgba(74,222,128,0.2);margin:8px 0';
+            card.appendChild(sep);
+            [['Name', contact.name], ['Email', contact.email], ['Phone', contact.phone]].forEach(([k, v]) => {
+                if (!v) return;
+                const r  = document.createElement('div');
+                r.className = 'card-row';
+                const k1 = document.createElement('span'); k1.textContent = k;
+                const v1 = document.createElement('span'); v1.textContent = v;
+                r.appendChild(k1); r.appendChild(v1);
+                card.appendChild(r);
+            });
+        }
+
+        if (paymentLink) {
+            const href = safeHref(paymentLink);
+            const a    = document.createElement('a');
+            a.className = 'pay-btn';
+            a.href      = href;
+            a.target    = '_blank';
+            a.rel       = 'noopener noreferrer';
+            a.textContent = '→ Proceed to Checkout';
+            card.appendChild(a);
+        }
+
+        return card;
+    }
+
+    function buildEscalateCard(data) {
+        const card = document.createElement('div');
+        card.className = 'card escalate';
+
+        const lbl = document.createElement('div');
+        lbl.className = 'card-label';
+        lbl.textContent = '⚠ Escalated — Specialist Notified';
+        card.appendChild(lbl);
+
+        const reason = document.createElement('p');
+        reason.style.cssText = 'font-size:12px;color:var(--muted);margin-top:4px';
+        reason.textContent = data.escalation_reason || 'Confidence below threshold. Jeff D. has been notified.';
+        card.appendChild(reason);
+
+        const part    = data.part    || {};
+        const contact = data.contact || {};
+        const rows    = [
+            ['Part',  part.description  || '—'],
+            ['Email', contact.email     || 'Not captured'],
+            ['Phone', contact.phone     || 'Not captured'],
+        ];
+        rows.forEach(([k, v]) => {
+            const r  = document.createElement('div');
+            r.className = 'card-row';
+            const k1 = document.createElement('span'); k1.textContent = k;
+            const v1 = document.createElement('span'); v1.textContent = v;
+            r.appendChild(k1); r.appendChild(v1);
+            card.appendChild(r);
+        });
+        return card;
+    }
+
+    // ── Scroll ────────────────────────────────────────────────────────────────
+    function scrollBottom() {
+        const area = $('chatArea');
+        area.scrollTop = area.scrollHeight;
+    }
+
+    // ── Cart management ───────────────────────────────────────────────────────
+    function updateCart(items) {
+        currentCart = items || [];
+        const container = $('cartItems');
+        const empty     = $('cartEmpty');
+        const footer    = $('cartFooter');
+        const count     = $('cartCount');
+        const badge     = $('cartBadgeHdr');
+
+        // Remove existing item rows (keep #cartEmpty sentinel)
+        Array.from(container.children).forEach(el => {
+            if (el.id !== 'cartEmpty') el.remove();
+        });
+
+        if (!currentCart.length) {
+            if (empty)  empty.style.display  = '';
+            if (footer) footer.style.display = 'none';
+            if (count)  count.textContent    = '0 items';
+            if (badge)  badge.textContent    = '';
+            return;
+        }
+
+        if (empty)  empty.style.display  = 'none';
+        if (footer) footer.style.display = '';
+        if (count)  count.textContent    = currentCart.length + (currentCart.length === 1 ? ' item' : ' items');
+        if (badge)  badge.textContent    = '(' + currentCart.length + ')';
+
+        currentCart.forEach((item, idx) => {
+            const row  = document.createElement('div');
+            row.className = 'cart-item';
+
+            const body = document.createElement('div');
+            body.className = 'cart-item-body';
+
+            const desc = document.createElement('div');
+            desc.className  = 'cart-item-desc';
+            desc.textContent = item.description || '—';
+
+            const meta = document.createElement('div');
+            meta.className  = 'cart-item-meta';
+            const pn  = item.part_number || 'TBD';
+            const qty = item.quantity    || 1;
+            meta.textContent = 'Part #' + pn + '  ·  Qty: ' + qty;
+
+            body.appendChild(desc);
+            body.appendChild(meta);
+
+            const btn = document.createElement('button');
+            btn.className   = 'cart-remove';
+            btn.title       = 'Remove item';
+            btn.textContent = '×';
+            btn.addEventListener('click', () => removeItem(idx));
+
+            row.appendChild(body);
+            row.appendChild(btn);
+            container.appendChild(row);
+        });
+    }
+
+    async function removeItem(idx) {
+        if (busy) return;
+        try {
+            const res = await fetch('/westernchat/cart/remove', {
+                method:  'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body:    JSON.stringify({ index: idx }),
+                credentials: 'same-origin',
+            });
+            if (!res.ok) return;
+            const data = await res.json();
+            if (Array.isArray(data.cart)) {
+                updateCart(data.cart);
+                appendBotBubble({ message: 'Item removed from your cart.', phase: currentPhase, confidence: null });
+            }
+        } catch (_) { /* ignore */ }
+    }
+
+    function toggleCart() {
+        const panel = $('cartPanel');
+        if (panel) panel.classList.toggle('open');
+    }
+
+    // ── Loading state ─────────────────────────────────────────────────────────
+    function setLoading(on) {
+        busy = on;
+        $('sendBtn').disabled  = on;
+        $('msgInput').disabled = on;
+        $('typing').className  = on ? 'show' : '';
+    }
+
+    // ── Initialize (first-contact handshake) ─────────────────────────────────
+    async function init() {
+        if (initialized) return;
+        initialized = true;
+        // Display startup message immediately (no round-trip needed — the
+        // backend primes the system prompt with the init ACK).
+        appendBotBubble({
+            message: 'Western Chat Initialized.',
+            phase: 'IDENTIFY',
+            confidence: 1.0,
+        });
+    }
+
+    // ── Send message ──────────────────────────────────────────────────────────
+    async function send(text) {
+        text = (text || '').trim();
+        if (!text || busy) return;
+
+        // Hide welcome card on first real interaction
+        const w = $('welcome');
+        if (w) w.style.display = 'none';
+
+        appendUserBubble(text);
+        setLoading(true);
+
+        try {
+            const res = await fetch('/westernchat/chat', {
+                method:  'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body:    JSON.stringify({ message: text }),
+                credentials: 'same-origin',
+            });
+
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                appendBotBubble({
+                    message: 'Error: ' + (err.error || res.statusText),
+                    phase: currentPhase,
+                    confidence: 0,
+                });
+                return;
+            }
+
+            const data = await res.json();
+            const phase = (data.phase || 'IDENTIFY').toUpperCase();
+            setPhase(phase);
+            appendBotBubble(data);
+            if (Array.isArray(data.cart)) {
+                updateCart(data.cart);
+            }
+
+        } catch (e) {
+            appendBotBubble({
+                message: 'Connection error. Please check your network and try again.',
+                phase: currentPhase,
+                confidence: 0,
+            });
+        } finally {
+            setLoading(false);
+        }
+    }
+
+    // ── Public API ────────────────────────────────────────────────────────────
+    function prefill(text) {
+        const el = $('msgInput');
+        el.value = text;
+        el.focus();
+        autoResize(el);
+    }
+
+    async function reset() {
+        try {
+            await fetch('/westernchat/reset', { method: 'POST', credentials: 'same-origin' });
+        } catch (_) { /* ignore — still reload for clean UI */ }
+        location.reload();
+    }
+
+    // ── Auto-resize textarea ──────────────────────────────────────────────────
+    function autoResize(el) {
+        el.style.height = 'auto';
+        el.style.height = Math.min(el.scrollHeight, 110) + 'px';
+    }
+
+    // ── Wire events ───────────────────────────────────────────────────────────
+    document.addEventListener('DOMContentLoaded', () => {
+        const form  = $('inputForm');
+        const input = $('msgInput');
+
+        form.addEventListener('submit', e => {
+            e.preventDefault();
+            const text = input.value.trim();
+            if (!text) return;
+            input.value = '';
+            autoResize(input);
+            send(text);
+        });
+
+        input.addEventListener('keydown', e => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                form.dispatchEvent(new Event('submit'));
+            }
+        });
+
+        input.addEventListener('input', () => autoResize(input));
+
+        init();
+    });
+
+    // ── Order submission modal ─────────────────────────────────────────────────
+    function openOrderModal() {
+        if (!currentCart.length) return;
+        const overlay = $('orderModalOverlay');
+        // Reset to form state
+        $('orderForm').style.display    = '';
+        $('orderSuccess').style.display = 'none';
+        $('orderFormError').style.display = 'none';
+        $('orderSubmitBtn').disabled    = false;
+        $('orderSubmitBtn').textContent = 'Send Order →';
+        overlay.style.display = 'flex';
+    }
+
+    function closeOrderModal() {
+        $('orderModalOverlay').style.display = 'none';
+    }
+
+    async function submitOrder(e) {
+        e.preventDefault();
+        const name  = $('of-name').value.trim();
+        const email = $('of-email').value.trim();
+        const errEl = $('orderFormError');
+
+        if (!name) {
+            errEl.textContent = 'Please enter your full name.';
+            errEl.style.display = '';
+            return;
+        }
+        if (!email || !email.includes('@')) {
+            errEl.textContent = 'Please enter a valid email address.';
+            errEl.style.display = '';
+            return;
+        }
+        errEl.style.display = 'none';
+
+        const btn = $('orderSubmitBtn');
+        btn.disabled    = true;
+        btn.textContent = 'Sending…';
+
+        try {
+            const res = await fetch('/westernchat/order', {
+                method:  'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'same-origin',
+                body: JSON.stringify({
+                    name,
+                    email,
+                    phone:   $('of-phone').value.trim(),
+                    address: $('of-address').value.trim(),
+                    city:    $('of-city').value.trim(),
+                    state:   $('of-state').value.trim(),
+                    zip:     $('of-zip').value.trim(),
+                }),
+            });
+
+            if (!res.ok) {
+                const d = await res.json().catch(() => ({}));
+                errEl.textContent   = d.error || 'Server error — please try again.';
+                errEl.style.display = '';
+                btn.disabled    = false;
+                btn.textContent = 'Send Order →';
+                return;
+            }
+
+            // Success — show in-modal confirmation briefly, then replace entire UI
+            $('orderForm').style.display    = 'none';
+            $('orderSuccess').style.display = '';
+            $('orderSuccessMsg').textContent =
+                'A confirmation has been emailed to ' + email + '. ' +
+                'The Western Parts team will follow up shortly.';
+
+            // After 2s, close modal and show full-screen thank-you
+            setTimeout(() => {
+                closeOrderModal();
+                currentCart = [];
+                updateCart([]);
+
+                // Replace the entire main content area with a thank-you screen
+                const mainRow = document.getElementById('mainRow');
+                const prog    = document.getElementById('progressStrip');
+                if (prog) prog.style.display = 'none';
+                if (mainRow) {
+                    mainRow.innerHTML =
+                        '<div style="display:flex;align-items:center;justify-content:center;' +
+                        'height:100%;min-height:420px;padding:40px 24px;text-align:center">' +
+                        '<div>' +
+                        '<div style="font-size:56px;margin-bottom:20px">✅</div>' +
+                        '<div style="font-size:22px;font-weight:700;color:var(--green);margin-bottom:12px">' +
+                        'Order Submitted!</div>' +
+                        '<div style="font-size:14px;color:var(--muted);line-height:1.7;max-width:400px;margin:0 auto">' +
+                        'Your order has been sent to the Western Parts team at<br>' +
+                        '<strong style="color:var(--text)">Steensma Lawn &amp; Power</strong>.<br><br>' +
+                        'A confirmation was emailed to<br>' +
+                        '<strong style="color:var(--blue)">' + email + '</strong>.<br><br>' +
+                        'We\'ll follow up to confirm availability,<br>pricing, and shipping.' +
+                        '</div>' +
+                        '<button onclick="location.reload()" ' +
+                        'style="margin-top:28px;padding:11px 28px;background:var(--accent);' +
+                        'color:#0f172a;border:none;border-radius:7px;font-size:13px;' +
+                        'font-weight:700;cursor:pointer">Start a New Order</button>' +
+                        '</div></div>';
+                }
+            }, 2000);
+
+        } catch (_) {
+            errEl.textContent   = 'Network error — please try again.';
+            errEl.style.display = '';
+            btn.disabled    = false;
+            btn.textContent = 'Send Order →';
+        }
+    }
+
+    // Close modal on overlay click
+    $('orderModalOverlay').addEventListener('click', function(e) {
+        if (e.target === this) closeOrderModal();
+    });
+
+    return { prefill, reset, toggleCart, openOrderModal, closeOrderModal, submitOrder };
+})();
+</script>
+
+</body>
+</html>
