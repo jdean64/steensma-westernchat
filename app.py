@@ -83,10 +83,16 @@ def _init_orders_db() -> None:
                 state       TEXT    NOT NULL DEFAULT '',
                 zip         TEXT    NOT NULL DEFAULT '',
                 cart_json   TEXT    NOT NULL,
+                notes       TEXT    NOT NULL DEFAULT '',
                 status      TEXT    NOT NULL DEFAULT 'new',
                 created_at  TEXT    NOT NULL
             )
         """)
+        # Add notes column to existing DBs that pre-date this schema change
+        try:
+            conn.execute("ALTER TABLE orders ADD COLUMN notes TEXT NOT NULL DEFAULT ''")
+        except Exception:
+            pass  # Column already exists
         conn.commit()
 
 _init_orders_db()
@@ -527,6 +533,7 @@ def _send_order_summary(user_key: str, parts_list: list, part_identified: dict |
         city    = contact.get("city",    "")
         state   = contact.get("state",   "")
         zip_    = contact.get("zip",     "")
+        notes   = contact.get("notes",   "")
 
         # Build shipping line
         addr_parts = [p for p in [address, city, state, zip_] if p]
@@ -554,6 +561,7 @@ def _send_order_summary(user_key: str, parts_list: list, part_identified: dict |
             f"Ship To:   {shipping_line}",
             f"Session:   {user_key}",
             f"Time:      {datetime.utcnow().isoformat()}Z",
+            *((["Application: " + notes, ""]) if notes else []),
             "",
             "Parts List:",
             *item_lines,
@@ -566,6 +574,7 @@ def _send_order_summary(user_key: str, parts_list: list, part_identified: dict |
             "",
             "Here is your Western Parts order summary from Steensma Lawn & Power.",
             "Our team will follow up to confirm availability and finalize pricing.",
+            *(([f"Application: {notes}", ""]) if notes else []),
             "",
             f"Ship To: {shipping_line}",
             "",
@@ -845,6 +854,10 @@ def submit_order():
     city    = (data.get("city")    or "").strip()
     state   = (data.get("state")   or "").strip()
     zip_    = (data.get("zip")     or "").strip()
+    notes   = (data.get("notes")   or "").strip()
+    # Fallback: use transfer application from session if no notes provided
+    if not notes:
+        notes = session.get("transfer_application", "")
 
     key  = _user_key()
     cart = _get_cart(key)
@@ -864,10 +877,10 @@ def submit_order():
             conn.execute(
                 """INSERT INTO orders
                    (session_key, name, email, phone, address, city, state, zip,
-                    cart_json, status, created_at)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'new', ?)""",
+                    cart_json, notes, status, created_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'new', ?)""",
                 (key, name, email, phone, address, city, state, zip_,
-                 json.dumps(cart_snapshot), datetime.utcnow().isoformat() + "Z"),
+                 json.dumps(cart_snapshot), notes, datetime.utcnow().isoformat() + "Z"),
             )
             conn.commit()
     except Exception as e:
@@ -884,6 +897,7 @@ def submit_order():
             "city":    city,
             "state":   state,
             "zip":     zip_,
+            "notes":   notes,
         })
     except Exception as e:
         logger.error("Email send failed (order still saved): %s", e)
@@ -893,6 +907,7 @@ def submit_order():
     # Clear transfer agent session state too (order consumed it)
     session.pop("transfer_history", None)
     session.pop("transfer_cart", None)
+    session.pop("transfer_application", None)
     session.modified = True
 
     return jsonify({"ok": True})
@@ -979,6 +994,7 @@ Response Format — ALWAYS return valid JSON (no markdown fences, no prose outsi
   "pt_kit": "<PT kit number e.g. PT5, or empty string if not yet determined>",
   "plug_id_url": "<plug ID page URL if relevant, else empty string>",
   "vehicle_specific_needed": ["<list of items that require QuickMatch / shop lookup>"],
+  "application": "<one-line summary once all 3 vehicles/plow are known, e.g. 'Transferring MVP Plus UltraMount from 2019 Ford F-250 to 2022 Chevy Silverado 2500 — PT6 kit'; empty string until DETERMINE phase>",
   "ready_to_order": <true | false>
 }}
 
@@ -1063,8 +1079,11 @@ def transfer_chat():
     session.modified = True
 
     parts_list = ai.get("parts_list") or []
-    if ai.get("ready_to_order") or ai.get("phase") == "COMMIT":
+    application = str(ai.get("application") or "").strip()
+    if ai.get("ready_to_order") or ai.get("phase") in ("DETERMINE", "COMMIT"):
         session["transfer_cart"] = parts_list
+        if application:
+            session["transfer_application"] = application
         session.modified = True
 
     # Log interaction
@@ -1083,6 +1102,7 @@ def transfer_chat():
         "pt_kit":                ai.get("pt_kit", ""),
         "plug_id_url":           ai.get("plug_id_url", ""),
         "vehicle_specific_needed": ai.get("vehicle_specific_needed", []),
+        "application":           ai.get("application", ""),
         "ready_to_order":        ai.get("ready_to_order", False),
         "cart":                  session.get("transfer_cart", []),
     })
@@ -1093,6 +1113,7 @@ def transfer_reset():
     """Reset transfer agent session state."""
     session.pop("transfer_history", None)
     session.pop("transfer_cart", None)
+    session.pop("transfer_application", None)
     session.modified = True
     return jsonify({"ok": True})
 
@@ -1186,6 +1207,7 @@ def admin_orders():
             <div style="color:#2563eb;font-size:12px">{r['email']}</div>
             <div style="color:#6b7280;font-size:12px">{r['phone']}</div>
           </td>
+          <td style="font-size:12px;color:#374151;max-width:220px">{r['notes'] or '<span style="color:#9ca3af">—</span>'}</td>
           <td style="font-size:12px;color:#374151">{ship or '<span style="color:#9ca3af">—</span>'}</td>
           <td><ul style="margin:0;padding-left:16px;font-size:12px">{parts_html}</ul></td>
           <td style="text-align:center">{status_sel}</td>
@@ -1237,7 +1259,7 @@ def admin_orders():
 </header>
 <div class="container">
   <div class="summary">{summary_html}</div>
-  {"<table><thead><tr><th>Submitted</th><th>Customer</th><th>Ship To</th><th>Parts</th><th>Status</th></tr></thead><tbody>" + "".join(rows_html) + "</tbody></table>" if rows else '<div class="empty">No orders yet.</div>'}
+  {"<table><thead><tr><th>Submitted</th><th>Customer</th><th>Application</th><th>Ship To</th><th>Parts</th><th>Status</th></tr></thead><tbody>" + "".join(rows_html) + "</tbody></table>" if rows else '<div class="empty">No orders yet.</div>'}
 </div>
 <script>
 async function updateStatus(sel) {{

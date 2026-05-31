@@ -1328,6 +1328,7 @@ const WestChat = (() => {
                     city:    $('of-city').value.trim(),
                     state:   $('of-state').value.trim(),
                     zip:     $('of-zip').value.trim(),
+                    notes:   transferApplication || '',
                 }),
             });
 
@@ -1352,12 +1353,25 @@ const WestChat = (() => {
                 closeOrderModal();
                 currentCart = [];
                 updateCart([]);
+                transferApplication = '';
+
+                // If transfer panel is active, exit it cleanly first
+                const txPanel = document.getElementById('transferPanel');
+                const isTransfer = txPanel && txPanel.classList.contains('active');
+                if (isTransfer) {
+                    // exitTransfer already handles show/hide of mainRow and progressStrip
+                    try { fetch('/westernchat/transfer/reset', { method: 'POST', credentials: 'same-origin' }); } catch (_) {}
+                    txPanel.classList.remove('active');
+                    const cartBar2 = document.getElementById('transferCartBar');
+                    if (cartBar2) cartBar2.style.display = 'none';
+                }
 
                 // Replace the entire main content area with a thank-you screen
                 const mainRow = document.getElementById('mainRow');
                 const prog    = document.getElementById('progressStrip');
                 if (prog) prog.style.display = 'none';
                 if (mainRow) {
+                    mainRow.style.display = '';
                     mainRow.innerHTML =
                         '<div style="display:flex;align-items:center;justify-content:center;' +
                         'height:100%;min-height:420px;padding:40px 24px;text-align:center">' +
@@ -1394,9 +1408,10 @@ const WestChat = (() => {
     });
 
     // ── Plow Transfer Agent ───────────────────────────────────────────────────
-    let transferBusy   = false;
-    let transferPhase  = 'GATHER_OLD';
-    let transferCart   = [];
+    let transferBusy        = false;
+    let transferPhase       = 'GATHER_OLD';
+    let transferCart        = [];
+    let transferApplication = '';
 
     const TX_PHASE_ORDER = ['GATHER_OLD', 'GATHER_PLOW', 'GATHER_NEW', 'DETERMINE', 'COMMIT'];
 
@@ -1522,8 +1537,9 @@ const WestChat = (() => {
         if (txPanel)   txPanel.classList.add('active');
 
         // Reset and kick off first bot message
-        transferBusy  = false;
-        transferCart  = [];
+        transferBusy        = false;
+        transferCart        = [];
+        transferApplication = '';
         setTransferPhase('GATHER_OLD');
 
         // Clear previous chat and hide cart bar
@@ -1598,6 +1614,8 @@ const WestChat = (() => {
 
             const data = await res.json();
             setTransferPhase((data.phase || 'GATHER_OLD').toUpperCase());
+            // Capture application description when available
+            if (data.application) transferApplication = data.application;
             appendTransferBotBubble(data);
 
         } catch (e) {
