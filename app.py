@@ -57,8 +57,8 @@ logger = logging.getLogger("westernchat")
 # ── Config ────────────────────────────────────────────────────────────────────
 OPENAI_API_KEY       = os.getenv("OPENAI_API_KEY")
 OPENAI_MODEL         = os.getenv("WESTERNCHAT_MODEL", "gpt-4o")
-ESCALATION_TO        = os.getenv("ESCALATION_EMAIL", "jeffd@steensmalawn.com")
-SES_FROM             = os.getenv("SES_FROM", "jeffd@steensmalawn.com")  # must be SES-verified
+ESCALATION_TO        = os.getenv("ESCALATION_EMAIL", "jdean64@gmail.com")
+SES_FROM             = os.getenv("SES_FROM", "westchat@coresteensma.com")  # must be SES-verified
 SES_REGION           = os.getenv("SES_REGION", "us-east-1")
 PAYMENT_PORTAL_BASE  = os.getenv("PAYMENT_PORTAL_URL", "https://steensmalawn.com/checkout")
 CONFIDENCE_THRESHOLD = 0.85
